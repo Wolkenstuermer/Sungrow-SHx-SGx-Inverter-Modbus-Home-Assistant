@@ -379,14 +379,14 @@ modbus:
         count: 10
         scan_interval: 600
 
-      - name: Sungrow battery serial
-        unique_id: sh10_battery_serial
-        device_address: !secret sungrow_modbus_slave # Usually 200, only modbus-port, not via Winet-S
-        address: 10710 # reg 10711
-        input_type: input
-        data_type: string
-        count: 10
-        scan_interval: 86400
+#      - name: Sungrow battery serial
+#        unique_id: sh10_battery_serial
+#        device_address: !secret sungrow_modbus_slave # Usually 200, only modbus-port, not via Winet-S
+#        address: 10710 # reg 10711
+#        input_type: input
+#        data_type: string
+#        count: 10
+#        scan_interval: 86400
 
       - name: SH10 Sungrow device type code
         unique_id: sh10_dev_code
@@ -541,19 +541,6 @@ modbus:
         scale: 0.1
         scan_interval: 10
 
-      - name: SH10 Grid frequency
-        unique_id: sh10_grid_frequency
-        device_address: !secret sungrow_modbus_slave
-        address: 5035 # reg 5036
-        input_type: input
-        data_type: uint16
-        precision: 2
-        unit_of_measurement: "Hz"
-        device_class: frequency
-        state_class: measurement
-        scale: 0.01
-        scan_interval: 10
-
       - name: SH10 Reactive power
         unique_id: sh10_reactive_power
         device_address: !secret sungrow_modbus_slave
@@ -580,6 +567,19 @@ modbus:
         state_class: measurement
         scale: 0.001
         scan_interval: 600
+
+      - name: SH10 Grid frequency
+        unique_id: sh10_grid_frequency
+        device_address: !secret sungrow_modbus_slave
+        address: 5035 # reg 5036
+        input_type: input
+        data_type: uint16
+        precision: 2
+        unit_of_measurement: "Hz"
+        device_class: frequency
+        state_class: measurement
+        scale: 0.01
+        scan_interval: 10
 
       #https://www.photovoltaikforum.com/thread/166134-daten-lesen-vom-sungrow-wechselrichtern-modbus/?pageNo=13
       #Meter Active Power: 5601-5602 S32 W (Energiezähler Wirkleistung)
@@ -1608,7 +1608,7 @@ modbus:
         address: 13019 # reg 13020
         input_type: input
         data_type: uint16
-        precision: 0
+        precision: 1
         unit_of_measurement: V
         device_class: Voltage
         state_class: measurement
@@ -1941,6 +1941,7 @@ modbus:
         state_class: measurement
         scan_interval: 10
 
+      #undocumented sensor (reverse engineered by some guys of photovoltaikforum.com and forum.iobroker.net )
       - name: SH10 Reserved SoC for backup
         unique_id: sh10_reserved_soc_for_backup
         device_address: !secret sungrow_modbus_slave
@@ -1953,7 +1954,6 @@ modbus:
         scale: 1
         scan_interval: 10
 
-      #undocumented sensors (reverse engineered by some guys of photovoltaikforum.com and forum.iobroker.net )
       - name: SH10 Battery max charge power
         unique_id: sh10_battery_max_charge_power
         device_address: !secret sungrow_modbus_slave
@@ -1991,6 +1991,7 @@ modbus:
 #        scale: 0.01
 #        scan_interval: 3600
 
+      #undocumented sensor (reverse engineered by some guys of photovoltaikforum.com and forum.iobroker.net )
       - name: SH10 Battery charging start power
         unique_id: sh10_battery_charging_start_power
         device_address: !secret sungrow_modbus_slave
@@ -2004,6 +2005,7 @@ modbus:
         scale: 10
         scan_interval: 60
 
+      #undocumented sensor (reverse engineered by some guys of photovoltaikforum.com and forum.iobroker.net )
       - name: SH10 Battery discharging start power
         unique_id: sh10_battery_discharging_start_power
         device_address: !secret sungrow_modbus_slave
@@ -2029,8 +2031,12 @@ modbus:
 
 sensor:
   - platform: filter
+    # NOTE: 2024-01-11: Unique id was adapted to match the sg_* uid pattern.
+    # If the default dashboard does show an "unavailable" sensor, remove the unavailable one
+    # and remove the suffix *_2 from daily_consumed_energy_2
     name: "SH 10 Daily consumed energy (filtered)"
-    entity_id: sensor.sh10_daily_consumed_energy
+    entity_id: sensor.sh10_daily_consumed_energy_2
+    unique_id: sh10_daily_consumed_energy_filtered
     # commented following line, due to: 'device_class' is an invalid option for 'sensor.filter', check: device_class
     # device_class: energy
     # commented following line, due to: 'state_class' is an invalid option for 'sensor.filter', check: state_class
@@ -2116,7 +2122,7 @@ template:
         state: >-
           {% if states('sensor.sh10_running_state')|is_number %}
             {# use available sensor sh10_running_state #}
-            {% if states('sensor.sh10_running_state')|int(default=0)|bitwise_and(0x2) > 0 %}
+            {% if states('sensor.sh10_running_state')|int|bitwise_and(0x2) > 0 %}
               on
             {% else %}
               off
@@ -2130,7 +2136,7 @@ template:
                 {% if (states('sensor.sh10_battery_power_raw')|int > 0 ) %}
                   {# power flow from/to battery #}
                   on
-                {% else %}
+                {% else %} 
                   {# no power flow from/to battery #}
                   off
                 {% endif %}
@@ -2138,12 +2144,12 @@ template:
                 {# in EMS mode, but not in mode Forced charge #}
                 off
               {% endif %}
-            {% else %}
+            {% else %} 
               {# not in EMS forced mode, assuming self consumption mode #}
               {% if states('sensor.sh10_total_dc_power')|int > states('sensor.sh10_load_power')|int %}
                 {# more power generated than consumed. assuming battery charging #}
                 on
-              {% else %}
+              {% else %} 
                 off
               {% endif %}
             {% endif %}
@@ -2178,7 +2184,7 @@ template:
         state: >-
           {% if states('sensor.sh10_running_state')|is_number %}
             {# use available sensor sh10_running_state #}
-            {% if states('sensor.sh10_running_state')|int(default=0)|bitwise_and(0x4) > 0 %}
+            {% if states('sensor.sh10_running_state')|int|bitwise_and(0x4) > 0 %}
               on
             {% else %}
               off
@@ -2192,20 +2198,20 @@ template:
                 {% if (states('sensor.sh10_battery_power_raw')|int > 0 ) %}
                   {# power flow from/to battery #}
                   on
-                {% else %}
+                {% else %} 
                   {# no power flow from/to battery #}
                   off
                 {% endif %}
-              {% else %}
+              {% else %} 
                 {# in EMS mode, but not in mode Forced charge #}
                 off
               {% endif %}
-            {% else %}
+            {% else %} 
               {# not in EMS forced mode, assuming self consumption mode #}
               {% if ( ( states('sensor.sh10_total_dc_power')|int < states('sensor.sh10_load_power')|int ) ) and states('sensor.sh10_battery_power_raw')|int > 0 %}
                 {# more power consumed than generated and some battery power --> assuming battery discharging #}
                 on
-              {% else %}
+              {% else %} 
                 off
               {% endif %}
             {% endif %}
@@ -2235,12 +2241,12 @@ template:
           {% if states('sensor.sh10_running_state')|is_number and states('sensor.sh10_running_state')|float > 0 %}
             {# use available sensor running_state #}
             {{ states('sh10_sensor.running_state')|int|bitwise_and(0x10) > 0 }}
-          {% else %}
+          {% else %} 
             {# workaround for SH*RS inverters without working running_state #}
             {% if states('sensor.sh10_export_power_raw')|int > 0 %}
               1
-            {% else %}
-              0
+            {% else %} 
+              0 
             {% endif %}
           {% endif %}
 
@@ -2260,7 +2266,7 @@ template:
         # device_class: none / power
         # state_class: measurement
         availability: >-
-          {{
+          {{ 
           not is_state('sensor.sh10_running_state', 'unavailable')
           and not is_state('sensor.sh10_running_state', 'unavailable')
           }}
@@ -2268,7 +2274,7 @@ template:
           {% if states('sensor.sh10_running_state')|is_number and states('sensor.running_state')|float > 0 %}
             {# use available sensor running_state #}
             {{ states('sensor.sh10_running_state')|int|bitwise_and(0x20) > 0 }}
-          {% else %}
+          {% else %} 
             {# workaround for SH*RS inverters without working running_state #}
             {% if states('sensor.sh10_export_power_raw')|int < 0 %}
               1
@@ -2572,90 +2578,90 @@ template:
       - name: SG6 Sungrow device type
         unique_id: sg6_device_type
         availability: "{{ not is_state('sensor.sg6_sungrow_device_type_code', 'unavailable') }}"
-        # TODO: test state_class with enum
-        # state_class: measurement
         device_class: enum
         state: >-
-          {% if ((states('sensor.sg6_sungrow_device_type_code') | int(default=0))  == 0x243D) %}
+          {% if ((states('sensor.sg6_sungrow_device_type_code') |int)  == 0x243D) %}
             SG3.0RT
-          {% elif ((states('sensor.sg6_sungrow_device_type_code') | int(default=0))  == 0x243E) %}
+          {% elif ((states('sensor.sg6_sungrow_device_type_code') |int)  == 0x243E) %}
             SG4.0RT
-          {% elif ((states('sensor.sg6_sungrow_device_type_code') | int(default=0))  == 0x2430) %}
+          {% elif ((states('sensor.sg6_sungrow_device_type_code') |int)  == 0x2430) %}
             SG5.0RT
-          {% elif ((states('sensor.sg6_sungrow_device_type_code') | int(default=0))  == 0x2431) %}
+          {% elif ((states('sensor.sg6_sungrow_device_type_code') |int)  == 0x2431) %}
             SG6.0RT
-          {% elif ((states('sensor.sg6_sungrow_device_type_code') | int(default=0))  == 0x2432) %}
+          {% elif ((states('sensor.sg6_sungrow_device_type_code') |int)  == 0x2432) %}
             SG8.0RT
-          {% elif ((states('sensor.sg6_sungrow_device_type_code') | int(default=0))  == 0x2433) %}
+          {% elif ((states('sensor.sg6_sungrow_device_type_code') |int)  == 0x2433) %}
             SG10.0RT
-          {% elif ((states('sensor.sg6_sungrow_device_type_code') | int(default=0)) == 0x0D07) %}
+          {% elif ((states('sensor.sg6_sungrow_device_type_code') |int) == 0x0D07) %}
             SH4K6
           {% endif %}
 
       - name: SH10 Sungrow device type
         unique_id: sh10_device_type
         availability: "{{ not is_state('sensor.sh10_sungrow_device_type_code', 'unavailable') }}"
-        # TODO: test state_class with enum
-        # state_class: measurement
         device_class: enum
         state: >-
-          {% if ((states('sensor.sh10_sungrow_device_type_code') | int(default=0))  == 0x0D06) %}
+          {% if ((states('sensor.sh10_sungrow_device_type_code') |int)  == 0x0D06) %}
             SH3K6
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0D07) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0D07) %}
             SH4K6
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0D09) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0D09) %}
             SH5K-20
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0D03) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0D03) %}
             SH5K-V13
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0D0A) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0D0A) %}
             SH3K6-30
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0D0B) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0D0B) %}
             SH4K6-30
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0D0C) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0D0C) %}
             SH5K-30
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0D17) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0D17) %}
             SH3.RS
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0D0D) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0D0D) %}
             SH3.6RS
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0D18) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0D18) %}
             SH4.0RS
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0D0F) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0D0F) %}
             SH5.0RS
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0D10) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0D10) %}
             SH6.0RS
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0E00) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0D1A) %}
+            SH8.0RS
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0D1B) %}
+            SH10RS
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0E00) %}
             SH5.0RT
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0E01) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0E01) %}
             SH6.0RT
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0E02) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0E02) %}
             SH8.0RT
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0E03) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0E03) %}
             SH10RT
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0E10) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0E10) %}
             SH5.0RT-20
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0E11) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0E11) %}
             SH6.0RT-20
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0E12) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0E12) %}
             SH8.0RT-20
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0E13) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0E13) %}
             SH10RT-20
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0E0C) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0E0C) %}
             SH5.0RT-V112
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0E0D) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0E0D) %}
             SH6.0RT-V112
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0E0E) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0E0E) %}
             SH8.0RT-V112
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0E0F) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0E0F) %}
             SH10RT-V112
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0E08) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0E08) %}
             SH5.0RT-V122
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0E09) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0E09) %}
             SH6.0RT-V122
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0E0A) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0E0A) %}
             SH8.0RT-V122
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0E0B) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0E0B) %}
             SH10RT-V122
-          {% elif ((states('sensor.sh10_sungrow_device_type_code') | int(default=0)) == 0x0D0E) %}
+          {% elif ((states('sensor.sh10_sungrow_device_type_code') |int) == 0x0D0E) %}
             SH4.6RS
           {% else %}
             Unknown device code!
@@ -2673,14 +2679,14 @@ template:
         # state_class: measurement
         device_class: enum
         state: >-
-          {% if ((states('sensor.sh10_battery_forced_charge_discharge_cmd_raw') | int(default=0)) == 0x00AA) %}
+          {% if ((states('sensor.sh10_battery_forced_charge_discharge_cmd_raw') |int) == 0x00AA) %}
             Forced charge
-          {% elif ((states('sensor.sh10_battery_forced_charge_discharge_cmd_raw') | int(default=0))  == 0x00BB) %}
+          {% elif ((states('sensor.sh10_battery_forced_charge_discharge_cmd_raw') |int)  == 0x00BB) %}
             Forced discharge
-          {% elif ((states('sensor.sh10_battery_forced_charge_discharge_cmd_raw') | int(default=0))  == 0x00CC) %}
+          {% elif ((states('sensor.sh10_battery_forced_charge_discharge_cmd_raw') |int)  == 0x00CC) %}
             Stop (default)
           {% else %}
-            Unknown - should not see me!
+            Unknown - should not see me!  code: {{ (states('sensor.battery_forced_charge_discharge_cmd_raw') |int) }}
           {% endif %}
 
       - name: SH10 Export power limit mode
@@ -2690,12 +2696,12 @@ template:
         # state_class: measurement
         device_class: enum
         state: >-
-          {% if ((states('sensor.sh10_export_power_limit_mode_raw') | int(default=0)) == 0x00AA) %}
+          {% if ((states('sensor.sh10_export_power_limit_mode_raw') |int) == 0x00AA) %}
             Enabled
-          {% elif ((states('sensor.sh10_export_power_limit_mode_raw') | int(default=0))  == 0x0055) %}
+          {% elif ((states('sensor.sh10_export_power_limit_mode_raw') |int)  == 0x0055) %}
             Disabled
           {% else %}
-            Unknown - should not see me!
+            Unknown - should not see me! code: {{ (states('sensor.export_power_limit_mode_raw') |int) }}
           {% endif %}
 
       # make the sensor ems_selection_raw more human readable
@@ -2706,15 +2712,15 @@ template:
         # state_class: measurement
         device_class: enum
         state: >-
-          {% if ((states('sensor.sh10_ems_mode_selection_raw') | int) == 0) %}
+          {% if ((states('sensor.sh10_ems_mode_selection_raw') |int) == 0) %}
             Self-consumption mode (default)
-          {% elif ((states('sensor.sh10_ems_mode_selection_raw') | int) == 2) %}
+          {% elif ((states('sensor.sh10_ems_mode_selection_raw') |int) == 2) %}
             Forced mode
-          {% elif ((states('sensor.sh10_ems_mode_selection_raw') | int) == 3) %}
+          {% elif ((states('sensor.sh10_ems_mode_selection_raw') |int) == 3) %}
             External EMS
-          {% elif ((states('sensor.sh10_ems_mode_selection_raw') | int) == 4) %}
+          {% elif ((states('sensor.sh10_ems_mode_selection_raw') |int) == 4) %}
             VPP
-          {% elif ((states('sensor.sh10_ems_mode_selection_raw') | int) == 8) %}
+          {% elif ((states('sensor.sh10_ems_mode_selection_raw') |int) == 8) %}
             MicroGrid
           {% else %}
             Unknown - should not see me!  code: {{ (states('sensor.sh10_ems_mode_selection_raw') |int) }}
@@ -2726,18 +2732,18 @@ template:
         device_class: power
         state_class: measurement
         availability: >-
-          {{
+          {{ 
           not is_state('binary_sensor.sh10_battery_charging', 'unavailable')
           and not is_state('binary_sensor.sh10_battery_discharging', 'unavailable')
           and not is_state('sensor.sh10_battery_power_raw', 'unavailable')
           }}
         state: >-
           {% if is_state('binary_sensor.sh10_battery_charging', 'on') %}
-            {{ (states('sensor.sh10_battery_power_raw') | float)}}
-          {% elif is_state('binary_sensor.sh10_battery_discharging', 'on') %}
-            {{ (states('sensor.sh10_battery_power_raw') | float * -1)}}
-          {% else %}
-            0
+            {{ (states('sensor.sh10_battery_power_raw') | float)}} 
+          {% elif is_state('binary_sensor.sh10_battery_discharging', 'on') %} 
+            {{ (states('sensor.sh10_battery_power_raw') | float * -1)}} 
+          {% else %} 
+            0 
           {% endif %}
 
       - name: SH10 Battery charging power # positive if charging else zero
@@ -2864,7 +2870,7 @@ template:
           {% set soc_max = states('sensor.sh10_max_soc') | float %}
           {% set soc_cur = states('sensor.sh10_battery_level') | float %}
           {{
-            ((soc_min) + ((soc_max - soc_min) * (soc_cur / 100))) | round(1)
+            (soc_min + ((soc_max - soc_min) * (soc_cur / 100))) | round(1)
           }}
 
       - name: "SH10 Battery charge (nominal)"
@@ -2883,6 +2889,10 @@ template:
             states('sensor.sh10_battery_level_nominal') | float / 100 )| round(1)
           }}
 
+      # this is the actually **usable energy ** of the battery
+      # with respect to min/ max soc.
+      # If min_soc is set to 15 and max soc is set to 90,
+      # this value is 0.75 * capacity
       - name: "SH10 Battery charge"
         unique_id: sh10_battery_charge
         unit_of_measurement: kWh
@@ -3062,11 +3072,11 @@ automation:
   - id: "automation_sungrow_inverter_state"
     alias: "sungrow inverter state"
     description: "Enables/ stops the inverter"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - input_select.set_sg_inverter_run_mode
-    condition: []
+    conditions: []
     variables:
       sg_start: 0xCF
       sg_stop: 0xCE
@@ -3087,11 +3097,11 @@ automation:
   - id: "automation_sungrow_inverter_state_input_selector_update"
     alias: "sungrow inverter enable/ stop input selector update"
     description: "Updates enable/ stops input selector"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - sensor.sh10_sungrow_inverter_state
-    condition:
+    conditions:
       - condition: template
         value_template: "{{ not is_state('sensor.sh10_sungrow_inverter_state', 'unavailable') }}"
     actions:
@@ -3110,11 +3120,11 @@ automation:
   - id: "automation_sungrow_inverter_update_max_soc"
     alias: "sungrow inverter update max SoC"
     description: "Updates Sungrow max Soc holding register"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - input_number.set_sg_max_soc
-    condition: []
+    conditions: []
     actions:
       - action: modbus.write_register
         data_template:
@@ -3127,11 +3137,11 @@ automation:
   - id: "automation_sungrow_inverter_update_max_soc_input_slider_update"
     alias: "sungrow inverter max SoC input slider update"
     description: "Updates Sungrow max Soc input slider"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - sensor.sh10_max_soc
-    condition: []
+    conditions: []
     actions:
       - action: input_number.set_value
         target:
@@ -3143,11 +3153,11 @@ automation:
   - id: "automation_sungrow_inverter_update_min_soc"
     alias: "sungrow inverter update min SoC"
     description: "Updates Sungrow min Soc holding register"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - input_number.set_sg_min_soc
-    condition: []
+    conditions: []
     actions:
       - action: modbus.write_register
         data_template:
@@ -3160,11 +3170,11 @@ automation:
   - id: "automation_sungrow_inverter_update_min_soc_input_slider_update"
     alias: "sungrow inverter min SoC input slider update"
     description: "Updates Sungrow min Soc input slider"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - sensor.sh10_min_soc
-    condition: []
+    conditions: []
     actions:
       - action: input_number.set_value
         target:
@@ -3176,11 +3186,11 @@ automation:
   - id: "automation_sungrow_inverter_update_reserved_soc_for_backup"
     alias: "sungrow inverter update reserved soc for backup"
     description: "Updates reserved SoC for backup register"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - input_number.set_sg_reserved_soc_for_backup
-    condition: []
+    conditions: []
     actions:
       - action: modbus.write_register
         data_template:
@@ -3193,11 +3203,11 @@ automation:
   - id: "automation_sungrow_inverter_update_reserved_backup_soc_input_slider_update"
     alias: "sungrow inverter reserved backup SoC input slider update"
     description: "Updates Sungrow reserved backup Soc input slider"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - sensor.sh10_reserved_soc_for_backup
-    condition: []
+    conditions: []
     actions:
       - action: input_number.set_value
         target:
@@ -3209,11 +3219,11 @@ automation:
   - id: "automation_sungrow_inverter_update_battery_forced_charge_discharge_cmd"
     alias: "sungrow inverter update battery forced charge discharge cmd"
     description: "Updates Sungrow holding register for battery forced charge discharge command"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - input_select.set_sg_battery_forced_charge_discharge_cmd
-    condition: []
+    conditions: []
     variables:
       ems_forced_charge: 0xAA
       ems_forced_discharge: 0xBB
@@ -3239,11 +3249,11 @@ automation:
   - id: "automation_sungrow_inverter_update_battery_forced_charge_discharge_cmd_input_select_update"
     alias: "sungrow inverter update battery forced charge discharge cmd input select update"
     description: "Updates Sungrow battery forced charge discharge cmd input select"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - sensor.sh10_battery_forced_charge_discharge_cmd
-    condition:
+    conditions:
       - condition: template
         value_template: "{{ not is_state('sensor.sh10_battery_forced_charge_discharge_cmd', 'unavailable') }}"
     actions:
@@ -3257,11 +3267,11 @@ automation:
   - id: "automation_sungrow_inverter_update_ems_mode"
     alias: "sungrow inverter update EMS mode"
     description: "Updates EMS mode"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - input_select.set_sg_ems_mode
-    condition: []
+    conditions: []
     variables:
       ems_mode_self_consume: 0
       ems_mode_forced: 2
@@ -3293,11 +3303,11 @@ automation:
   - id: "automation_sungrow_inverter_export_power_limit_mode_update"
     alias: "sungrow inverter export power limit mode update"
     description: "Updates Enable/Disable for export power limit mode"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - sensor.sh10_export_power_limit_mode_raw
-    condition:
+    conditions:
       - condition: template
         value_template: "{{ not is_state('sensor.sh10_export_power_limit_mode_raw', 'unavailable') }}"
     actions:
@@ -3306,9 +3316,9 @@ automation:
           entity_id: input_select.set_sg_export_power_limit_mode
         data:
           option: >
-            {% if ((states('sensor.sh10_export_power_limit_mode_raw') | int(default=0)) == 0x00AA) %}
+            {% if ((states('sensor.sh10_export_power_limit_mode_raw') |int) == 0x00AA) %}
               Enabled
-            {% elif ((states('sensor.sh10_export_power_limit_mode_raw') | int(default=0)) == 0x0055) %}
+            {% elif ((states('sensor.sh10_export_power_limit_mode_raw') |int) == 0x0055) %}
               Disabled
             {% endif %}
     mode: single
@@ -3316,11 +3326,11 @@ automation:
   - id: "automation_sungrow_export_power_limit_mode"
     alias: "sungrow inverter export power limit mode"
     description: "Set export power limit mode"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - input_select.set_sg_export_power_limit_mode
-    condition: []
+    conditions: []
     variables:
       export_limit_enable: 0xAA
       export_limit_disable: 0x55
@@ -3343,11 +3353,11 @@ automation:
   - id: "automation_sungrow_inverter_export_power_limit_update"
     alias: "sungrow inverter export power limit update"
     description: "Updates export power limit slider"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - sensor.sh10_export_power_limit
-    condition: []
+    conditions: []
     actions:
       - action: input_number.set_value
         target:
@@ -3359,11 +3369,11 @@ automation:
   - id: "automation_sungrow_inverter_set_export_power_limit"
     alias: "sungrow inverter export power limit"
     description: "Sets export power limit"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - input_number.set_sg_export_power_limit
-    condition: []
+    conditions: []
     actions:
       - action: modbus.write_register
         data_template:
@@ -3376,11 +3386,11 @@ automation:
   - id: "automation_sungrow_inverter_update_ems_mode_input_select_update"
     alias: "sungrow inverter update EMS mode input select update"
     description: "Updates EMS mode input select"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - sensor.sh10_ems_mode_selection
-    condition:
+    conditions:
       - condition: template
         value_template: "{{ not is_state('sensor.sh10_ems_mode_selection', 'unavailable') }}"
     actions:
@@ -3394,11 +3404,11 @@ automation:
   - id: "automation_sungrow_inverter_update_battery_forced_charge_discharge_power"
     alias: "sungrow inverter update battery forced charge discharge power"
     description: "Sets battery forced charge discharge power"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - input_number.set_sg_forced_charge_discharge_power
-    condition: []
+    conditions: []
     actions:
       - action: modbus.write_register
         data_template:
@@ -3411,11 +3421,11 @@ automation:
   - id: "automation_sungrow_inverter_update_battery_forced_charge_discharge_power_input_slider_update"
     alias: "sungrow inverter update battery forced charge discharge power input slider update"
     description: "Updates battery forced charge discharge power input slider"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - sensor.sh10_battery_forced_charge_discharge_power
-    condition: []
+    conditions: []
     actions:
       - action: input_number.set_value
         target:
@@ -3427,11 +3437,11 @@ automation:
   - id: "automation_sungrow_inverter_update_battery_max_charge_power"
     alias: "sungrow inverter update battery max charge power"
     description: "Sets battery max charge power"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - input_number.set_sg_battery_max_charge_power
-    condition: []
+    conditions: []
     actions:
       - action: modbus.write_register
         data_template:
@@ -3444,11 +3454,11 @@ automation:
   - id: "automation_sungrow_inverter_update_battery_max_charge_power_input_slider_update"
     alias: "sungrow inverter update battery max charge power input slider update"
     description: "Updates battery max charge power input slider"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - sensor.sh10_battery_max_charge_power
-    condition: []
+    conditions: []
     actions:
       - action: input_number.set_value
         target:
@@ -3460,11 +3470,11 @@ automation:
   - id: "automation_sungrow_inverter_update_battery_max_discharge_power"
     alias: "sungrow inverter update battery max discharge power"
     description: "Sets battery max discharge power"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - input_number.set_sg_battery_max_discharge_power
-    condition: []
+    conditions: []
     actions:
       - action: modbus.write_register
         data_template:
@@ -3477,11 +3487,11 @@ automation:
   - id: "automation_sungrow_inverter_update_battery_max_discharge_power_input_slider_update"
     alias: "sungrow inverter update battery max discharge power input slider update"
     description: "Updates battery max discharge power input slider"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - sensor.sh10_battery_max_discharge_power
-    condition: []
+    conditions: []
     actions:
       - action: input_number.set_value
         target:
@@ -3493,11 +3503,11 @@ automation:
   - id: "automation_sungrow_inverter_update_battery_charging_start_power"
     alias: "sungrow inverter update battery charging start power"
     description: "Sets battery charging start power"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - input_number.set_sg_battery_charging_start_power
-    condition: []
+    conditions: []
     actions:
       - action: modbus.write_register
         data_template:
@@ -3510,11 +3520,11 @@ automation:
   - id: "automation_sungrow_inverter_update_battery_charging_start_power_input_slider_update"
     alias: "sungrow inverter update battery charging start power input slider update"
     description: "Updates battery charging start power input slider"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - sensor.sh10_battery_charging_start_power
-    condition: []
+    conditions: []
     actions:
       - action: input_number.set_value
         target:
@@ -3526,11 +3536,11 @@ automation:
   - id: "automation_sungrow_inverter_update_battery_discharging_start_power"
     alias: "sungrow inverter update battery discharging start power"
     description: "Sets battery discharging start power"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - input_number.set_sg_battery_discharging_start_power
-    condition: []
+    conditions: []
     actions:
       - action: modbus.write_register
         data_template:
@@ -3543,11 +3553,11 @@ automation:
   - id: "automation_sungrow_inverter_update_battery_discharging_start_power_input_slider_update"
     alias: "sungrow inverter update battery discharging start power input slider update"
     description: "Updates battery discharging start power input slider"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - sensor.sh10_battery_discharging_start_power
-    condition: []
+    conditions: []
     actions:
       - action: input_number.set_value
         target:
@@ -3559,8 +3569,8 @@ automation:
   - id: "automation_sungrow_inverter_global_mpp_scan_manual_update"
     alias: "sungrow inverter global mpp scan manual update"
     description: "Updates Enable/Disable for global mpp scan manual"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - sensor.sh10_global_mpp_scan_manual_raw
     condition:
@@ -3572,9 +3582,9 @@ automation:
           entity_id: input_select.set_sg_global_mpp_scan_manual
         data:
           option: >
-            {% if ((states('sensor.sh10_global_mpp_scan_manual_raw') | int(default=0)) == 0x00AA) %}
+            {% if ((states('sensor.sh10_global_mpp_scan_manual_raw') |int) == 0x00AA) %}
               Enabled
-            {% elif ((states('sensor.sh10_global_mpp_scan_manual_raw') | int(default=0)) == 0x0055) %}
+            {% elif ((states('sensor.sh10_global_mpp_scan_manual_raw') |int) == 0x0055) %}
               Disabled
             {% endif %}
     mode: single
@@ -3582,11 +3592,11 @@ automation:
   - id: "automation_sungrow_global_mpp_scan_manual"
     alias: "sungrow inverter global mpp scan manual"
     description: "Set global mpp scan manual"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id:
           - input_select.set_sg_global_mpp_scan_manual
-    condition: []
+    conditions: []
     variables:
       export_limit_enable: 0xAA
       export_limit_disable: 0x55
@@ -3611,8 +3621,8 @@ automation:
 # automation:
 #  - alias: Forced Battery Charging Management
 #    description: "Manages forced battery charging during cheapest hours."
-#   trigger:
-#      - platform: state
+#   triggers:
+#      - trigger: state
 #        entity_id:
 #          - binary_sensor.cheapest_hours_for_charging_timer
 #    actions:
